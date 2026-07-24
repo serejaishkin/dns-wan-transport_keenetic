@@ -41,7 +41,7 @@ func logError(format string, v ...interface{}) {
 	fmt.Fprintf(os.Stderr, "<3>dns-wan-transport: %s\n", msg)
 }
 
-// Находит первый свободный порт, начиная со стартового адреса
+// Автоподбор порта только для Web UI
 func findFreePort(startAddr string) (string, error) {
 	host, portStr, err := net.SplitHostPort(startAddr)
 	if err != nil {
@@ -53,7 +53,6 @@ func findFreePort(startAddr string) (string, error) {
 		return startAddr, err
 	}
 
-	// Перебираем до 100 портов вверх в поисках свободного
 	for i := 0; i < 100; i++ {
 		currentAddr := net.JoinHostPort(host, strconv.Itoa(port+i))
 		l, err := net.Listen("tcp", currentAddr)
@@ -62,8 +61,7 @@ func findFreePort(startAddr string) (string, error) {
 			return currentAddr, nil
 		}
 	}
-
-	return startAddr, fmt.Errorf("could not find any free port starting from %s", startAddr)
+	return startAddr, fmt.Errorf("could not find free port")
 }
 
 func main() {
@@ -83,19 +81,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Сканируем и подбираем свободные порты автоматически
-	socks5FreeAddr, err := findFreePort(cfg.Server.Socks5Addr)
-	if err != nil {
-		logError("CRITICAL: Failed to allocate port for SOCKS5: %v", err)
-		os.Exit(1)
-	}
-	if socks5FreeAddr != cfg.Server.Socks5Addr {
-		logInfo("SOCKS5 port was busy. Switched to backup address: %s", socks5FreeAddr)
-	}
-
+	// Подбираем свободный порт для админки, если 11001 занят
 	webUIFreeAddr, err := findFreePort(cfg.Server.WebUIAddr)
 	if err != nil {
-		logError("CRITICAL: Failed to allocate port for Web UI: %v", err)
+		logError("CRITICAL: Failed to allocate Web UI port: %v", err)
 		os.Exit(1)
 	}
 
@@ -114,7 +103,7 @@ func main() {
 
 	go monitor.Start(ctx)
 
-	// Запуск Web UI на динамически подобранном порту
+	// Запуск Web UI
 	webServer := web.NewWebServer(webUIFreeAddr, monitor)
 	go func() {
 		if err := webServer.Start(); err != nil {
@@ -122,7 +111,6 @@ func main() {
 		}
 	}()
 
-	// Выводим в системный лог Keenetic точный URL, на котором запустилась админка
 	_, webPort, _ := net.SplitHostPort(webUIFreeAddr)
 	logInfo("Service started successfully. Monitoring initiated.")
 	logInfo("====> WEB UI IS AVAILABLE AT: http://192.168.3.1:%s <====", webPort)
@@ -133,8 +121,12 @@ func main() {
 		var srv *socks5.SocksServer
 
 		socksCtx, socksCancel = context.WithCancel(ctx)
-		srv = socks5.NewSocksServer(socks5FreeAddr)
-		go srv.Start(socksCtx)
+		srv = socks5.NewSocksServer(cfg.Server.Socks5Addr)
+		go func() {
+			if err := srv.Start(socksCtx); err != nil {
+				logError("SOCKS5 Server fatal error: %v", err)
+			}
+		}()
 
 		for {
 			select {
@@ -145,8 +137,8 @@ func main() {
 				if alive {
 					logInfo("DNS Upstreams are healthy [OK]. Restoring SOCKS5 bridge interface.")
 					socksCtx, socksCancel = context.WithCancel(ctx)
-					srv = socks5.NewSocksServer(socks5FreeAddr)
-					go srv.Start(socksCtx)
+					srv = socks5.NewSocksServer(cfg.Server.Socks5Addr)
+					go func() { _ = srv.Start(socksCtx) }()
 				} else {
 					logError("CRITICAL: All DNS Upstreams down! Dropping SOCKS5 bridge to trigger Keenetic WAN Failover.")
 					if socksCancel != nil {
