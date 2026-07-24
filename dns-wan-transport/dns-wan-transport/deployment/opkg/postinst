@@ -2,14 +2,33 @@
 
 echo "Configuring Keenetic Proxy-Client interface via NDMC..."
 
-if [ -x /opt/bin/ndmc ]; then
-    /opt/bin/ndmc -c "interface Proxy0"
-    /opt/bin/ndmc -c "interface Proxy0 proxy name dns-transport-bridge type socks5 address 127.0.0.1 port 11000"
-    /opt/bin/ndmc -c "interface Proxy0 up"
-    /opt/bin/ndmc -c "system configuration save"
-    echo "Proxy0 interface successfully registered in KeeneticOS!"
+# Проверяем наличие ndmc в глобальном PATH или по стандартным системным путях Keenetic
+if command -v ndmc >/dev/null 2>&1; then
+    NDMC_EXEC="ndmc"
+elif [ -x /usr/sbin/ndmc ]; then
+    NDMC_EXEC="/usr/sbin/ndmc"
+elif [ -x /opt/bin/ndmc ]; then
+    NDMC_EXEC="/opt/bin/ndmc"
 else
-    echo "Warning: /opt/bin/ndmc not found. Please add SOCKS5 connection manually via Keenetic Web UI."
+    NDMC_EXEC=""
+fi
+
+if [ -n "$NDMC_EXEC" ]; then
+    # 1. Создаем интерфейс прокси
+    $NDMC_EXEC -c "interface Proxy0"
+    
+    # 2. Настраиваем тип подключения SOCKS5 и адрес нашего демона
+    $NDMC_EXEC -c "interface Proxy0 proxy name dns-transport-bridge type socks5 address 127.0.0.1 port 11000"
+    
+    # 3. Включаем интерфейс и принудительно разрешаем использовать его для выхода в Интернет (глобальный WAN)
+    $NDMC_EXEC -c "interface Proxy0 up"
+    $NDMC_EXEC -c "interface Proxy0 ip global"
+    
+    # 4. Сохраняем системную конфигурацию роутера
+    $NDMC_EXEC -c "system configuration save"
+    echo "Proxy0 interface successfully registered and set as global WAN in KeeneticOS!"
+else
+    echo "Warning: ndmc utility not found in the system. Please add SOCKS5 connection manually via Keenetic Web UI."
 fi
 
 exit 0
