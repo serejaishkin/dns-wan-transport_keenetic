@@ -1,6 +1,6 @@
 Package: dns-wan-transport
-Version: 1.0.0-6
-Description: Bridge between local DNS (AdGuard Home, SmartDNS) and Keenetic WAN Failover engine.
+Version: 1.0.0-7
+Description: Bridge between local DNS and Keenetic WAN Failover. Legacy kernel fix.
 Section: net
 Priority: optional
 Maintainer: Sereja Ishkin
