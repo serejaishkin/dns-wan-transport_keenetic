@@ -1,0 +1,9 @@
+#!/bin/sh
+
+ENABLED=yes
+PROG=/opt/bin/dns-wan-transport
+ARGS="--config /opt/etc/dns-wan-transport/config.json"
+PREARGS=""
+DESC="DNS WAN Transport Bridge"
+
+. /opt/etc/init.d/rc.func

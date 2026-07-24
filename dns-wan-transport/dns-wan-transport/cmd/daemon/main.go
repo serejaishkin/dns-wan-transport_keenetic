@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,6 +40,16 @@ func logError(format string, v ...interface{}) {
 	fmt.Fprintf(os.Stderr, "<3>dns-wan-transport: %s\n", msg)
 }
 
+// Проверка доступности порта перед биндингом
+func checkPortAvailable(addr string) error {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	l.Close()
+	return nil
+}
+
 func main() {
 	configPath := flag.String("config", "/opt/etc/dns-wan-transport/config.json", "Path to json config")
 	flag.Parse()
@@ -53,6 +64,16 @@ func main() {
 	var cfg Config
 	if err := json.NewDecoder(file).Decode(&cfg); err != nil {
 		logError("Failed to parse json config: %v", err)
+		os.Exit(1)
+	}
+
+	// Валидация портов перед запуском сервисов
+	if err := checkPortAvailable(cfg.Server.Socks5Addr); err != nil {
+		logError("CRITICAL: SOCKS5 address %s is already in use: %v", cfg.Server.Socks5Addr, err)
+		os.Exit(1)
+	}
+	if err := checkPortAvailable(cfg.Server.WebUIAddr); err != nil {
+		logError("CRITICAL: Web UI address %s is already in use: %v", cfg.Server.WebUIAddr, err)
 		os.Exit(1)
 	}
 
