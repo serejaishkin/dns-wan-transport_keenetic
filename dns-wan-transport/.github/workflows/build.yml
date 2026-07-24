@@ -1,35 +1,127 @@
-name: Build and Release OPKG
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*' # Срабатывает автоматически, когда ты создаешь тег версии (например, v1.0.11)
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: mipsle
+            goarm: ''
+            gomips: softfloat
+            entarch: mipsel
+            desc: 'MIPS little-endian (Keenetic Giga, Viva, Extra, Start)'
+          - goarch: mips
+            goarm: ''
+            gomips: softfloat
+            entarch: mips
+            desc: 'MIPS big-endian (legacy)'
+          - goarch: arm64
+            goarm: ''
+            gomips: ''
+            entarch: aarch64
+            desc: 'ARM64 (Keenetic Peak, Ultra, Speedster, Giant)'
+          - goarch: arm
+            goarm: '7'
+            gomips: ''
+            entarch: armv7
+            desc: 'ARMv7 (Keenetic Hop, Duo, City, Air)'
+          - goarch: amd64
+            goarm: ''
+            gomips: ''
+            entarch: x86_64
+            desc: 'x86_64 (VM, Docker)'
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21.13' # Жестко фиксируем стабильную версию рантайма
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
 
-      - name: Build MIPSLE Binary
-        run: |
-          mkdir -p build
-          CGO_ENABLED=0 GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build -ldflags="-s -w" -o build/dns-wan-transport_mipsle cmd/daemon/main.go
+    - name: Build binary
+      env:
+        GOOS: linux
+        GOARCH: ${{ matrix.goarch }}
+        GOARM: ${{ matrix.goarm }}
+        GOMIPS: ${{ matrix.gomips }}
+      run: |
+        VERSION=${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}
+        LDFLAGS="-s -w -X main.version=$VERSION"
+        BIN="dns-wan-transport-${{ matrix.entarch }}"
+        go build -ldflags "$LDFLAGS" -o "$BIN" ./cmd/dns-wan-transport
+        echo "Built: $BIN"
+        ls -la "$BIN"
+        file "$BIN"
 
-      - name: Build OPKG Package
-        run: |
-          chmod +x deployment/opkg/build_package.sh
-          ./deployment/opkg/build_package.sh
+    - name: Build opkg package
+      run: |
+        VERSION=${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}
+        VERSION=${VERSION#v}
+        ./scripts/build-ipk.sh           "${{ matrix.entarch }}"           "$VERSION"           "dns-wan-transport-${{ matrix.entarch }}"           "dns-wan-transport_${VERSION}_${{ matrix.entarch }}.ipk"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/dns-wan-transport_*.ipk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dns-wan-transport-${{ matrix.entarch }}
+        path: |
+          dns-wan-transport-${{ matrix.entarch }}
+          dns-wan-transport_*.ipk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: artifacts/*
+        generate_release_notes: true
+        body: |
+          ## dns-wan-transport ${{ github.ref_name }}
+
+          ### Installation (Entware)
+          ```bash
+          # Download .ipk for your router architecture
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dns-wan-transport_<VERSION>_<ARCH>.ipk
+          opkg install dns-wan-transport_<VERSION>_<ARCH>.ipk
+          ```
+
+          ### Architectures
+          | File | Router models |
+          |------|--------------|
+          | `dns-wan-transport_*_mipsel.ipk` | Keenetic Giga, Viva, Extra, Start |
+          | `dns-wan-transport_*_aarch64.ipk` | Keenetic Peak, Ultra, Speedster, Giant |
+          | `dns-wan-transport_*_armv7.ipk` | Keenetic Hop, Duo, City, Air |
+          | `dns-wan-transport_*_mips.ipk` | Legacy MIPS models |
+          | `dns-wan-transport_*_x86_64.ipk` | VMs, Docker |
+
+          ### Manual install
+          ```bash
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dns-wan-transport-<ARCH>
+          chmod +x dns-wan-transport-<ARCH>
+          mv dns-wan-transport-<ARCH> /opt/sbin/dns-wan-transport
+          ```
