@@ -1,6 +1,6 @@
 Package: dns-wan-transport
-Version: 1.0.0-7
-Description: Bridge between local DNS and Keenetic WAN Failover. Legacy kernel fix.
+Version: 1.0.0-9
+Description: Bridge between local DNS and Keenetic WAN Failover. Docker 1.21 Engine Fix.
 Section: net
 Priority: optional
 Maintainer: Sereja Ishkin

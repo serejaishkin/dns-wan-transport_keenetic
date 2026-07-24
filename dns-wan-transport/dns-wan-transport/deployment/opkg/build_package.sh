@@ -4,14 +4,13 @@ set -e
 PROJECT_ROOT=$(pwd)
 BUILD_DIR="${PROJECT_ROOT}/build"
 STAGE_DIR="${BUILD_DIR}/ipk_staging"
-IPK_NAME="dns-wan-transport_1.0.6_all.ipk"
+IPK_NAME="dns-wan-transport_1.0.8_all.ipk"
 
 echo "=== Starting OPKG build process ==="
 
-if [ ! -f "${BUILD_DIR}/dns-wan-transport_mipsle" ]; then
-    echo "-> Running 'make mipsle'..."
-    make mipsle
-fi
+# Удаляем старый бинарник, чтобы Docker скомпилировал новый с нуля
+rm -f "${BUILD_DIR}/dns-wan-transport_mipsle"
+make mipsle
 
 rm -rf "${STAGE_DIR}"
 mkdir -p "${STAGE_DIR}/control"
