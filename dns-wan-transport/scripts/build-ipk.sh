@@ -1,72 +1,54 @@
 #!/bin/bash
 set -e
 
-ARCH="${1:-mipsel}"
-VERSION="${2:-0.1.0}"
-BINARY="${3:-dns-wan-transport}"
-OUTPUT="${4:-dns-wan-transport_${VERSION}_${ARCH}.ipk}"
+VERSION=${1:-0.1.1}
+ARCH=${2:-mipsel}
+BIN=${3:-dns-wan-transport}
+PKG=dns-wan-transport_${VERSION}_${ARCH}
+TMP=$(mktemp -d)
+trap "rm -rf $TMP" EXIT
 
-if [ ! -f "$BINARY" ]; then
-    echo "ERROR: Binary not found: $BINARY"
+mkdir -p $TMP/$PKG/opt/sbin
+mkdir -p $TMP/$PKG/opt/etc/dns-wan-transport
+mkdir -p $TMP/$PKG/opt/etc/init.d
+mkdir -p $TMP/$PKG/CONTROL
+
+if [ ! -f "$BIN" ]; then
+    echo "ERROR: binary $BIN not found!"
+    ls -la
     exit 1
 fi
 
-WORKDIR=$(mktemp -d)
-trap "rm -rf $WORKDIR" EXIT
+cp "$BIN" $TMP/$PKG/opt/sbin/dns-wan-transport
+cp config.json.example $TMP/$PKG/opt/etc/dns-wan-transport/config.json
+cp entware/S99dns-wan-transport $TMP/$PKG/opt/etc/init.d/
 
-mkdir -p "$WORKDIR/data/opt/sbin"
-mkdir -p "$WORKDIR/data/opt/etc/dns-wan-transport"
-mkdir -p "$WORKDIR/data/opt/etc/init.d"
-mkdir -p "$WORKDIR/data/opt/etc/ndm/wan.d"
-mkdir -p "$WORKDIR/data/opt/share/dns-wan-transport/web"
-mkdir -p "$WORKDIR/data/opt/var/run"
-
-cp "$BINARY" "$WORKDIR/data/opt/sbin/dns-wan-transport"
-chmod 755 "$WORKDIR/data/opt/sbin/dns-wan-transport"
-
-cp config.json.example "$WORKDIR/data/opt/etc/dns-wan-transport/config.json"
-chmod 644 "$WORKDIR/data/opt/etc/dns-wan-transport/config.json"
-
-cp entware/S99dns-wan-transport "$WORKDIR/data/opt/etc/init.d/"
-chmod 755 "$WORKDIR/data/opt/etc/init.d/S99dns-wan-transport"
-
-cp entware/010-dns-wan-transport.sh "$WORKDIR/data/opt/etc/ndm/wan.d/"
-chmod 755 "$WORKDIR/data/opt/etc/ndm/wan.d/010-dns-wan-transport.sh"
-
-cp web/index.html "$WORKDIR/data/opt/share/dns-wan-transport/web/"
-chmod 644 "$WORKDIR/data/opt/share/dns-wan-transport/web/index.html"
-
-mkdir -p "$WORKDIR/control"
-cat > "$WORKDIR/control/control" <<EOFC
+cat > $TMP/$PKG/CONTROL/control << EOFC
 Package: dns-wan-transport
 Version: $VERSION
 Architecture: $ARCH
-Maintainer: dns-wan-transport contributors
-Source: https://github.com/keenetic/dns-wan-transport
-Description: SOCKS5 WAN bridge for Keenetic DNS failover
-Section: net
-Priority: optional
+Maintainer: serejaishkin
+Description: SOCKS5 WAN bridge for Keenetic with DNS health check
 EOFC
 
-cat > "$WORKDIR/control/postinst" <<'EOFP'
+cat > $TMP/$PKG/CONTROL/postinst << 'EOF'
 #!/bin/sh
-/opt/etc/init.d/S99dns-wan-transport enable 2>/dev/null || true
-/opt/etc/init.d/S99dns-wan-transport start 2>/dev/null || true
-EOFP
-chmod 755 "$WORKDIR/control/postinst"
+chmod +x /opt/etc/init.d/S99dns-wan-transport
+EOF
+chmod +x $TMP/$PKG/CONTROL/postinst
 
-cat > "$WORKDIR/control/postrm" <<'EOFP'
+cat > $TMP/$PKG/CONTROL/postrm << 'EOF'
 #!/bin/sh
-rm -f /opt/var/run/dns-wan-transport.pid
-EOFP
-chmod 755 "$WORKDIR/control/postrm"
+rm -rf /opt/etc/dns-wan-transport
+EOF
+chmod +x $TMP/$PKG/CONTROL/postrm
 
-echo "2.0" > "$WORKDIR/debian-binary"
+mkdir -p ipkg
+cd $TMP
+tar czf $TMP/data.tar.gz -C $PKG/opt .
+tar czf $TMP/control.tar.gz -C $PKG/CONTROL .
+echo "2.0" > $TMP/debian-binary
 
-cd "$WORKDIR"
-tar -czf control.tar.gz -C control .
-tar -czf data.tar.gz -C data .
-tar -czf "$OUTPUT" debian-binary control.tar.gz data.tar.gz
-
-echo "Created: $OUTPUT"
-ls -la "$OUTPUT"
+ar r $OLDPWD/ipkg/${PKG}.ipk $TMP/control.tar.gz $TMP/data.tar.gz $TMP/debian-binary
+echo "Built: ipkg/${PKG}.ipk"
+ls -la $OLDPWD/ipkg/

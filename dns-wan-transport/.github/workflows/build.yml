@@ -42,17 +42,17 @@ jobs:
           GOMIPS: ${{ matrix.gomips }}
           GOARM: ${{ matrix.goarm }}
         run: |
-          go build -ldflags "-s -w" -o dns-wan-transport ./cmd/dns-wan-transport
-          ls -la dns-wan-transport
-          file dns-wan-transport
+          BIN="dns-wan-transport-${{ matrix.arch }}"
+          go build -ldflags "-s -w" -o "$BIN" ./cmd/dns-wan-transport
+          ls -la "$BIN"
+          file "$BIN"
 
       - name: Build .ipk package
         run: |
-          mkdir -p ipkg
-          chmod +x scripts/build-ipk.sh
           VERSION=${GITHUB_REF_NAME#v}
           ARCH=${{ matrix.arch }}
-          bash scripts/build-ipk.sh "$VERSION" "$ARCH"
+          BIN="dns-wan-transport-${{ matrix.arch }}"
+          bash scripts/build-ipk.sh "$VERSION" "$ARCH" "$BIN"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
