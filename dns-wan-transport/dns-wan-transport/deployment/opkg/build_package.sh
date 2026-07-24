@@ -4,7 +4,7 @@ set -e
 PROJECT_ROOT=$(pwd)
 BUILD_DIR="${PROJECT_ROOT}/build"
 STAGE_DIR="${BUILD_DIR}/ipk_staging"
-IPK_NAME="dns-wan-transport_1.0.0-1_mipselsf.ipk"
+IPK_NAME="dns-wan-transport_1.0.0-2_all.ipk"
 
 echo "=== Starting OPKG build process ==="
 

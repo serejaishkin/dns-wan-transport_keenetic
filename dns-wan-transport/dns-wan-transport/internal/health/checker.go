@@ -5,7 +5,6 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -115,47 +114,19 @@ func (m *Monitor) checkAll() {
 }
 
 func (m *Monitor) pingDNS(addr string) error {
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		return err
-	}
-
-	// Создаем стандартное UDP-подключение
-	conn, err := net.DialUDP("udp", nil, udpAddr)
+	d := net.Dialer{Timeout: m.timeout}
+	conn, err := d.Dial("udp", addr)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	// Получаем низкоуровневый системный дескриптор файла сокета (File Descriptor)
-	rawConn, err := conn.SyscallConn()
-	if err != nil {
-		return err
-	}
-
-	// Принудительно связываем сокет с интерфейсом локальной петли 'lo' на уровне ядра Linux.
-	// Обертка Control выполняет системный вызов внутри контекста сокета.
-	var bindErr error
-	err = rawConn.Control(func(fd uintptr) {
-		bindErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, "lo")
-	})
-	if err != nil {
-		return err
-	}
-	if bindErr != nil {
-		return bindErr
-	}
-
-	// Установка таймаутов на чтение и запись
-	_ = conn.SetDeadline(time.Now().Add(m.timeout))
-
-	// Отправка DNS-пакета
 	if _, err := conn.Write(m.rawQuery); err != nil {
 		return err
 	}
 
-	// Ожидание ответа от бэкенда
 	buf := make([]byte, 512)
+	_ = conn.SetReadDeadline(time.Now().Add(m.timeout))
 	_, err = conn.Read(buf)
 	return err
 }
