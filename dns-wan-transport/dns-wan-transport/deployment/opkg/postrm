@@ -1,0 +1,18 @@
+#!/bin/sh
+# postrm script для opkg пакета
+
+echo "Removing dns-wan-transport configuration from KeeneticOS..."
+
+if [ -x /opt/bin/ndmc ]; then
+    # Отключаем и полностью удаляем созданный ранее прокси-интерфейс
+    /opt/bin/ndmc -c "interface Proxy0 down" 2>/dev/null || true
+    /opt/bin/ndmc -c "no interface Proxy0" 2>/dev/null || true
+    
+    # Сохраняем системную чистую конфигурацию роутера
+    /opt/bin/ndmc -c "system configuration save" 2>/dev/null || true
+    echo "Proxy0 interface successfully cleared from KeeneticOS!"
+else
+    echo "Warning: /opt/bin/ndmc not found. Please clean proxy configuration manually if needed."
+fi
+
+exit 0
