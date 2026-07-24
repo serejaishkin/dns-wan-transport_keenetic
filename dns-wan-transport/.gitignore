@@ -1,0 +1,6 @@
+dns-wan-transport
+*.log
+*.pid
+*.ipk
+ipkg/
+dist/
