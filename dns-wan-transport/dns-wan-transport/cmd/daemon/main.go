@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,19 +29,31 @@ type Config struct {
 	Backends []*health.Backend `json:"backends"`
 }
 
+func logInfo(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	fmt.Fprintf(os.Stdout, "<6>dns-wan-transport: %s\n", msg)
+}
+
+func logError(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	fmt.Fprintf(os.Stderr, "<3>dns-wan-transport: %s\n", msg)
+}
+
 func main() {
 	configPath := flag.String("config", "/opt/etc/dns-wan-transport/config.json", "Path to json config")
 	flag.Parse()
 
 	file, err := os.Open(*configPath)
 	if err != nil {
-		log.Fatalf("Failed to open config: %v", err)
+		logError("Failed to open config: %v", err)
+		os.Exit(1)
 	}
 	defer file.Close()
 
 	var cfg Config
 	if err := json.NewDecoder(file).Decode(&cfg); err != nil {
-		log.Fatalf("Failed to parse json config: %v", err)
+		logError("Failed to parse json config: %v", err)
+		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -62,9 +74,11 @@ func main() {
 	webServer := web.NewWebServer(cfg.Server.WebUIAddr, monitor)
 	go func() {
 		if err := webServer.Start(); err != nil {
-			log.Printf("Web UI server error: %v", err)
+			logError("Web UI server error: %v", err)
 		}
 	}()
+
+	logInfo("Service started successfully. Monitoring initiated.")
 
 	go func() {
 		var socksCtx context.Context
@@ -82,14 +96,14 @@ func main() {
 				return
 			case alive := <-statusCh:
 				if alive {
-					log.Println("DNS Upstreams are healthy. Starting SOCKS5 bridge...")
+					logInfo("DNS Upstreams are healthy [OK]. Restoring SOCKS5 bridge interface.")
 					socksCtx, socksCancel = context.WithCancel(ctx)
 					srv = socks5.NewSocksServer(cfg.Server.Socks5Addr)
 					go srv.Start(socksCtx)
 				} else {
-					log.Println("DNS Upstreams failed! Dropping SOCKS5 bridge to trigger Keenetic Failover...")
+					logError("CRITICAL: All DNS Upstreams down! Dropping SOCKS5 bridge to trigger Keenetic WAN Failover.")
 					if socksCancel != nil {
-						socksCancel()
+						socksCancel() 
 					}
 				}
 			}
@@ -99,5 +113,5 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
-	log.Println("Shutting down dns-wan-transport...")
+	logInfo("Shutting down dns-wan-transport daemon gracefully...")
 }
