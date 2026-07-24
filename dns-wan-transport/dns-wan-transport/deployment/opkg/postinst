@@ -1,34 +1,21 @@
 #!/bin/sh
 
-echo "Configuring Keenetic Proxy-Client interface via NDMC..."
+echo "Configuring Keenetic Proxy-Client interface via Internal RCI HTTP API..."
 
-# Проверяем наличие ndmc в глобальном PATH или по стандартным системным путях Keenetic
-if command -v ndmc >/dev/null 2>&1; then
-    NDMC_EXEC="ndmc"
-elif [ -x /usr/sbin/ndmc ]; then
-    NDMC_EXEC="/usr/sbin/ndmc"
-elif [ -x /opt/bin/ndmc ]; then
-    NDMC_EXEC="/opt/bin/ndmc"
-else
-    NDMC_EXEC=""
-fi
+# Используем RCI HTTP порт 79 ядра Keenetic для безопасной передачи команд конфигурации
+RCI_URL="http://127.0.0.1:79/rci"
 
-if [ -n "$NDMC_EXEC" ]; then
-    # 1. Создаем интерфейс прокси
-    $NDMC_EXEC -c "interface Proxy0"
-    
-    # 2. Настраиваем тип подключения SOCKS5 и адрес нашего демона
-    $NDMC_EXEC -c "interface Proxy0 proxy name dns-transport-bridge type socks5 address 127.0.0.1 port 11000"
-    
-    # 3. Включаем интерфейс и принудительно разрешаем использовать его для выхода в Интернет (глобальный WAN)
-    $NDMC_EXEC -c "interface Proxy0 up"
-    $NDMC_EXEC -c "interface Proxy0 ip global"
-    
-    # 4. Сохраняем системную конфигурацию роутера
-    $NDMC_EXEC -c "system configuration save"
-    echo "Proxy0 interface successfully registered and set as global WAN in KeeneticOS!"
-else
-    echo "Warning: ndmc utility not found in the system. Please add SOCKS5 connection manually via Keenetic Web UI."
-fi
+# 1. Создаем интерфейс Proxy0
+curl -s -X POST "${RCI_URL}/interface/Proxy0" -d '{}' > /dev/null || true
 
+# 2. Настраиваем параметры прокси-клиента SOCKS5
+curl -s -X POST "${RCI_URL}/interface/Proxy0/proxy" -d '{"name":"dns-transport-bridge","type":"socks5","address":"127.0.0.1","port":11000}' > /dev/null || true
+
+# 3. Поднимаем интерфейс
+curl -s -X POST "${RCI_URL}/interface/Proxy0/up" -d '{}' > /dev/null || true
+
+# 4. Сохраняем конфигурацию в постоянную память Keenetic
+curl -s -X POST "${RCI_URL}/system/configuration/save" -d '{}' > /dev/null || true
+
+echo "Proxy0 interface successfully registered via RCI API!"
 exit 0

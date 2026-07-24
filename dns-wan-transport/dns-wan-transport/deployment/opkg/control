@@ -1,6 +1,6 @@
 Package: dns-wan-transport
-Version: 1.0.0-12
-Description: Bridge between local DNS and Keenetic WAN Failover. Cloud Go 1.21 toolchain fix.
+Version: 1.0.0-13
+Description: Bridge between local DNS and Keenetic WAN Failover. Pure RCI HTTP engine.
 Section: net
 Priority: optional
 Maintainer: Sereja Ishkin
