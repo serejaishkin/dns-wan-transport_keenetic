@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "Configuring Keenetic Proxy-Client interface via NDMC..."
+
+if [ -x /opt/bin/ndmc ]; then
+    /opt/bin/ndmc -c "interface Proxy0"
+    /opt/bin/ndmc -c "interface Proxy0 proxy name dns-transport-bridge type socks5 address 127.0.0.1 port 11000"
+    /opt/bin/ndmc -c "interface Proxy0 up"
+    /opt/bin/ndmc -c "system configuration save"
+    echo "Proxy0 interface successfully registered in KeeneticOS!"
+else
+    echo "Warning: /opt/bin/ndmc not found. Please add SOCKS5 connection manually via Keenetic Web UI."
+fi
+
+exit 0
