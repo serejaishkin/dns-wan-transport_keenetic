@@ -1,0 +1,10 @@
+#!/bin/sh
+
+ENABLED=yes
+PROCS=dns-wan-transport
+ARGS="-config /opt/etc/dns-wan-transport/config.json"
+PREARGS=""
+DESC="DNS WAN Transport for Keenetic"
+PATH=/opt/sbin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+. /opt/etc/init.d/rc.func
