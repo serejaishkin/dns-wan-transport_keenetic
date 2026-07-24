@@ -3,7 +3,8 @@
 ENABLED=yes
 PROG=/opt/bin/dns-wan-transport
 ARGS="--config /opt/etc/dns-wan-transport/config.json"
-PREARGS=""
+# Отключаем асинхронный преемпт для стабильной работы планировщика Go на ядрах KeeneticOS
+PREARGS="GODEBUG=asyncpreemptoff=1"
 DESC="DNS WAN Transport Bridge"
 
 . /opt/etc/init.d/rc.func
