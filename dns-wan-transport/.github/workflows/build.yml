@@ -29,12 +29,9 @@ jobs:
             goarch: amd64
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-
       - name: Build binary
         env:
           GOOS: linux
@@ -46,16 +43,14 @@ jobs:
           go build -ldflags "-s -w" -o "$BIN" ./cmd/dns-wan-transport
           ls -la "$BIN"
           file "$BIN"
-
       - name: Build .ipk package
         run: |
+          chmod +x scripts/build-ipk.sh
           VERSION=${GITHUB_REF_NAME#v}
           ARCH=${{ matrix.arch }}
           BIN="dns-wan-transport-${{ matrix.arch }}"
           bash scripts/build-ipk.sh "$VERSION" "$ARCH" "$BIN"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: dns-wan-transport-${{ matrix.arch }}
           path: ipkg/*.ipk
@@ -65,15 +60,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - uses: softprops/action-gh-release@v1
         with:
           files: artifacts/*.ipk
           generate_release_notes: true
